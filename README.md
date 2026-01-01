@@ -61,17 +61,13 @@ npm install
 
 ## 실행 방법
 
-### 방법 1: 개발 서버 (웹만)
-
-F2F-Engine 없이 오프라인 모드로 실행:
+### 방법 1: 개발
 
 ```bash
 npm run dev
 ```
 
 http://localhost:3000 접속
-
-> 오프라인 모드에서는 F2F-Engine 기능 없이 기본 UI만 확인 가능
 
 ### 방법 2: Docker Compose (웹 + 엔진)
 
@@ -88,38 +84,7 @@ docker-compose up -d
 - 웹: http://localhost:3000
 - 엔진: http://localhost:5001
 
-### 방법 3: 프로덕션 빌드
-
-```bash
-# 빌드
-npm run build
-
-# 실행
-npm run start
-```
-
-## 첫 실행 테스트
-
-### 1. 엔진 상태 확인
-
-```bash
-# F2F-Engine health check
-curl http://localhost:5001/health
-# 응답: {"status":"ok"}
-
-# 버전 확인
-curl http://localhost:5001/version
-```
-
-### 2. 웹 앱 확인
-
-```bash
-# 웹 앱 접속
-curl -I http://localhost:3000
-# 응답: HTTP/1.1 200 OK
-```
-
-### 3. 게임 플레이 테스트
+### 게임 플레이 테스트
 
 1. http://localhost:3000 접속
 2. **[ 게임 시작 ]** 버튼 클릭
@@ -128,7 +93,7 @@ curl -I http://localhost:3000
    - 상태 바 확인 (우측: HP, 골드, 위치)
    - 하단 명령어 입력창 확인
 
-### 4. 기본 명령어 테스트
+### 기본 명령어 테스트
 
 ```
 # 이동 명령
@@ -147,14 +112,6 @@ rest               # 휴식
 help               # 도움말
 ```
 
-### 5. F2F-Engine 연동 테스트
-
-엔진이 연결되면:
-1. 플레이어 행동이 Fact로 변환되어 엔진에 전송
-2. 엔진이 Directive(목표, 선택지, 단서) 생성
-3. 화면에 선택지 버튼 표시
-4. 숫자 키(1-4)로 선택 가능
-
 ## 환경 변수
 
 | 변수 | 설명 | 기본값 |
@@ -167,34 +124,6 @@ help               # 도움말
 ```bash
 # .env.local (로컬 개발)
 F2F_ENGINE_URL=http://localhost:5001
-
-# .env.production (프로덕션)
-F2F_ENGINE_URL=https://f2f-engine-xxxxx.run.app
-```
-
-## Docker 명령어
-
-```bash
-# 시작
-docker-compose up
-
-# 백그라운드 시작
-docker-compose up -d
-
-# 로그 확인
-docker-compose logs -f
-
-# 웹 로그만
-docker-compose logs -f web
-
-# 엔진 로그만
-docker-compose logs -f engine
-
-# 중지
-docker-compose down
-
-# 이미지 재빌드
-docker-compose up --build
 ```
 
 ## 문제 해결
@@ -210,46 +139,8 @@ F2F-Engine에 연결할 수 없습니다. 오프라인 모드로 시작합니다
 2. `F2F_ENGINE_URL` 환경 변수 확인
 3. 방화벽/네트워크 설정 확인
 
-### Docker 빌드 실패
-
-```bash
-# 캐시 없이 재빌드
-docker-compose build --no-cache
-
-# 볼륨 정리 후 재시작
-docker-compose down -v
-docker-compose up --build
-```
-
-### 포트 충돌
-
-```bash
-# 사용 중인 포트 확인
-lsof -i :3000
-lsof -i :5001
-
-# 프로세스 종료
-kill -9 <PID>
-```
-
-## 배포 (GCP Cloud Run)
-
-```bash
-# Cloud Build로 배포
-gcloud builds submit --config cloudbuild.yaml
-
-# 또는 수동 배포
-docker build -t gcr.io/PROJECT_ID/f2f-web .
-docker push gcr.io/PROJECT_ID/f2f-web
-gcloud run deploy f2f-web --image gcr.io/PROJECT_ID/f2f-web
-```
-
 ## 참고 문서
 
-- [Next.js 16 참조](./docs/ref/nextjs16.md)
-- [React 19 참조](./docs/ref/react19.md)
-- [F2F-Engine 문서](../F2F-Engine/spec/)
-
-## 라이선스
-
-Private
+- [Next.js](https://nextjs.org/docs)
+- [React](https://react.dev/)
+- [F2F-Engine](https://github.com/drone0898/F2F-Engine)
