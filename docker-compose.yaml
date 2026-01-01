@@ -1,0 +1,49 @@
+# F2F Web Sample - Local Development Docker Compose
+# Runs both web app and F2F-Engine together
+
+services:
+  # Web Application (Next.js)
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - F2F_ENGINE_URL=http://engine:5001
+    depends_on:
+      engine:
+        condition: service_started
+    restart: unless-stopped
+    networks:
+      - f2f-network
+
+  # F2F-Engine (Python/FastAPI)
+  engine:
+    build:
+      context: ../F2F-Engine
+      dockerfile: Dockerfile
+    ports:
+      - "5001:5001"
+    environment:
+      - PYTHONPATH=/app/src
+      # Add your API keys here or use .env file
+      # - GEMINI_API_KEY=${GEMINI_API_KEY}
+    volumes:
+      # Mount config and worldspec for easy editing
+      - ../F2F-Engine/config:/app/config:ro
+      - ../F2F-Engine/worldspec:/app/worldspec:ro
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5001/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    restart: unless-stopped
+    networks:
+      - f2f-network
+
+networks:
+  f2f-network:
+    driver: bridge
