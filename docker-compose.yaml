@@ -26,14 +26,14 @@ services:
       dockerfile: Dockerfile
     ports:
       - "5001:5001"
+    env_file:
+      - ../F2F-Engine/.env
     environment:
       - PYTHONPATH=/app/src
-      # Add your API keys here or use .env file
-      # - GEMINI_API_KEY=${GEMINI_API_KEY}
     volumes:
-      # Mount config and worldspec for easy editing
       - ../F2F-Engine/config:/app/config:ro
       - ../F2F-Engine/worldspec:/app/worldspec:ro
+      - ../F2F-Engine/logs:/app/logs
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5001/health')"]
       interval: 10s
