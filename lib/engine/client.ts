@@ -10,9 +10,11 @@ import {
   IngestFactsResponse,
   SetCapabilitiesResponse,
   SetWorldSnapshotResponse,
+  PatchWorldSnapshotResponse,
   TickResponse,
   Fact,
   WorldSnapshot,
+  WorldSnapshotPatch,
   Capabilities,
   Directive,
   DirectiveLite,
@@ -129,6 +131,24 @@ export class F2FEngineClient {
       {
         session_id: sessionId,
         world_snapshot: worldSnapshot,
+      },
+      sessionId
+    );
+  }
+
+  /**
+   * Patch the world snapshot with incremental operations
+   */
+  async patchWorldSnapshot(
+    sessionId: string,
+    patch: WorldSnapshotPatch
+  ): Promise<PatchWorldSnapshotResponse> {
+    return this.request<PatchWorldSnapshotResponse>(
+      "POST",
+      "/v1/world/snapshot/patch",
+      {
+        session_id: sessionId,
+        patch,
       },
       sessionId
     );

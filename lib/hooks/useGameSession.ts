@@ -13,8 +13,11 @@ import {
   startGameSession,
   sendFacts,
   checkEngineHealth,
+  patchWorldSnapshot,
 } from "@/lib/engine/actions";
 import { createFactBuilder } from "@/lib/game/fact-builder";
+import { determineSuccess } from "@/lib/game/success-resolver";
+import { outcomeChangesToOps } from "@/lib/game/outcome-ops";
 import { Choice } from "@/lib/engine/types";
 import { getLocation } from "@/lib/game/capabilities";
 
@@ -38,6 +41,8 @@ export function useGameSession() {
     addSystemMessage,
     addPlayerMessage,
     addDirectiveMessage,
+    addConsequenceMessage,
+    applyOutcomeLocally,
     getGameState,
     reset,
   } = useGameStore();
@@ -223,12 +228,18 @@ export function useGameSession() {
         return;
       }
 
+      // 1. Determine success/failure based on choice type
+      const success = determineSuccess(choice);
+
       const factBuilder = createFactBuilder(sessionId);
       const directive = useGameStore.getState().currentDirective;
+
+      // 2. Create fact with success included
       const fact = factBuilder.selectChoice(
         choice.choice_id,
         choice.label,
-        directive?.directive_id
+        directive?.directive_id,
+        success
       );
 
       addPlayerMessage(`[선택] ${choice.label}`);
@@ -239,7 +250,35 @@ export function useGameSession() {
           const result = await sendFacts(sessionId, [fact], worldSnapshot);
 
           if (result.success) {
-            // Archive current directive before setting new one
+            // 3. Process choice result if available
+            if (result.choiceResult) {
+              const { outcome } = result.choiceResult;
+
+              // Display outcome narrative
+              const prefix = success ? "[성공]" : "[실패]";
+              addConsequenceMessage(`${prefix} ${outcome.narrative}`, { success });
+
+              // Apply outcome to local state (UI update)
+              applyOutcomeLocally(outcome);
+
+              // Display changes
+              for (const change of outcome.changes) {
+                const sign = change.delta > 0 ? "+" : "";
+                addSystemMessage(`${change.metric} ${sign}${change.delta}`);
+              }
+
+              // 4. Sync with Engine via patch
+              if (outcome.changes.length > 0) {
+                const ops = outcomeChangesToOps(outcome.changes);
+                await patchWorldSnapshot(sessionId, {
+                  session_id: sessionId,
+                  ts: new Date().toISOString(),
+                  ops,
+                });
+              }
+            }
+
+            // 5. Archive and set new directive
             if (directive) {
               useGameStore.getState().archiveDirective(directive);
             }
@@ -273,7 +312,9 @@ export function useGameSession() {
       setDirectiveLite,
       addPlayerMessage,
       addDirectiveMessage,
+      addConsequenceMessage,
       addSystemMessage,
+      applyOutcomeLocally,
     ]
   );
 

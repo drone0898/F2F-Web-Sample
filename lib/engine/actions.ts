@@ -11,11 +11,13 @@ import { engineClient, EngineError } from "./client";
 import {
   Fact,
   WorldSnapshot,
+  WorldSnapshotPatch,
   Capabilities,
   Directive,
   DirectiveLite,
   TickResponse,
   TickMode,
+  ChoiceResult,
 } from "./types";
 
 const GAME_ID = "text_adventure";
@@ -53,6 +55,7 @@ export interface SendFactsResult {
   ingested: number;
   directive?: Directive;
   directiveLite?: DirectiveLite;
+  choiceResult?: ChoiceResult;
   error?: string;
 }
 
@@ -134,6 +137,7 @@ export async function sendFacts(
       ingested: ingestResult.ingested,
       directive: tickResult.directive ?? undefined,
       directiveLite: tickResult.directive_lite ?? undefined,
+      choiceResult: tickResult.choice_result ?? undefined,
     };
   } catch (error) {
     console.error("Failed to send facts:", error);
@@ -205,6 +209,28 @@ export async function updateWorldSnapshot(
   } catch (error) {
     console.error("Failed to update world snapshot:", error);
     return false;
+  }
+}
+
+/**
+ * Patch world snapshot with incremental operations
+ */
+export async function patchWorldSnapshot(
+  sessionId: string,
+  patch: WorldSnapshotPatch
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    await engineClient.patchWorldSnapshot(sessionId, patch);
+    return { success: true };
+  } catch (error) {
+    console.error("Failed to patch world snapshot:", error);
+    return {
+      success: false,
+      error:
+        error instanceof EngineError
+          ? error.message
+          : "Failed to patch world snapshot",
+    };
   }
 }
 

@@ -535,10 +535,20 @@ body {
 }
 
 .message-item.consequence {
-  color: var(--terminal-accent);
   padding: 12px;
-  border: 1px solid var(--terminal-accent);
+  border-left: 3px solid;
   margin: 8px 0;
+  padding-left: 12px;
+}
+
+.message-item.consequence.success {
+  color: var(--terminal-fg);
+  border-color: var(--terminal-fg);
+}
+
+.message-item.consequence.failure {
+  color: var(--terminal-warning);
+  border-color: var(--terminal-warning);
 }
 
 /* Directive Panel */

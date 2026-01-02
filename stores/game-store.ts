@@ -14,6 +14,7 @@ import {
   WorldSnapshot,
   GameMessage,
   GameState,
+  Outcome,
 } from "@/lib/engine/types";
 import { saveManager, SaveData } from "@/lib/saves/save-manager";
 
@@ -60,7 +61,11 @@ interface GameStore {
   addPlayerMessage: (content: string) => void;
   addNpcMessage: (content: string, metadata?: Record<string, unknown>) => void;
   addDirectiveMessage: (content: string) => void;
+  addConsequenceMessage: (content: string, metadata?: Record<string, unknown>) => void;
   clearMessages: () => void;
+
+  // Actions - Outcome
+  applyOutcomeLocally: (outcome: Outcome) => void;
 
   // Actions - Loading
   setLoading: (value: boolean) => void;
@@ -172,7 +177,33 @@ export const useGameStore = create<GameStore>()(
         get().addMessage({ type: "directive", content });
       },
 
+      addConsequenceMessage: (content, metadata) => {
+        get().addMessage({ type: "consequence", content, metadata });
+      },
+
       clearMessages: () => set({ messages: [] }),
+
+      // Outcome Actions
+      applyOutcomeLocally: (outcome) => {
+        const current = get().worldSnapshot;
+        if (!current) return;
+
+        const newState = { ...current.state };
+        for (const change of outcome.changes) {
+          const key = change.metric;
+          if (typeof newState[key] === "number") {
+            newState[key] = (newState[key] as number) + change.delta;
+          }
+        }
+
+        set({
+          worldSnapshot: {
+            ...current,
+            ts: new Date().toISOString(),
+            state: newState,
+          },
+        });
+      },
 
       // Loading Actions
       setLoading: (value) => set({ isLoading: value }),

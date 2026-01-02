@@ -55,6 +55,14 @@ export interface Outcome {
   changes: OutcomeChange[];
 }
 
+export interface ChoiceResult {
+  choice_id: string;
+  directive_id: string;
+  success: boolean;
+  outcome: Outcome;
+  applied_at: string;
+}
+
 export interface Choice {
   choice_id: string;
   label: string;
@@ -152,6 +160,20 @@ export interface WorldSnapshot {
   }>;
 }
 
+export type OpType = "SET" | "INC" | "UNSET" | "APPEND" | "REMOVE";
+
+export interface WorldStateOp {
+  op: OpType;
+  path: string;
+  value?: unknown;
+}
+
+export interface WorldSnapshotPatch {
+  session_id: string;
+  ts: string;
+  ops: WorldStateOp[];
+}
+
 // ============== Trace & Debug ==============
 
 export interface ScoreBreakdown {
@@ -212,6 +234,16 @@ export interface SetWorldSnapshotResponse {
   status: string;
 }
 
+export interface PatchWorldSnapshotRequest {
+  session_id: string;
+  patch: WorldSnapshotPatch;
+}
+
+export interface PatchWorldSnapshotResponse {
+  session_id: string;
+  status: string;
+}
+
 export interface SetCapabilitiesRequest {
   session_id: string;
   capabilities: Capabilities;
@@ -233,6 +265,7 @@ export interface TickResponse {
   directive?: Directive;
   directive_lite?: DirectiveLite;
   trace?: Trace;
+  choice_result?: ChoiceResult;
 }
 
 // ============== Session Context ==============

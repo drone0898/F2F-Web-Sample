@@ -252,7 +252,8 @@ export class FactBuilder {
   selectChoice(
     choiceId: string,
     choiceLabel: string,
-    directiveId?: string
+    directiveId?: string,
+    success?: boolean
   ): Fact {
     return this.createFact(
       "ACTION",
@@ -261,6 +262,7 @@ export class FactBuilder {
         choice_id: choiceId,
         choice_label: choiceLabel,
         directive_id: directiveId,
+        success,
       },
       choiceId,
       ["choice", "directive_response"]

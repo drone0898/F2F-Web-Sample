@@ -51,7 +51,7 @@ interface MessageItemProps {
 }
 
 function MessageItem({ message }: MessageItemProps) {
-  const { type, content, timestamp } = message;
+  const { type, content, timestamp, metadata } = message;
 
   const formatTime = (ts: string) => {
     const date = new Date(ts);
@@ -61,8 +61,14 @@ function MessageItem({ message }: MessageItemProps) {
     });
   };
 
+  // Build class names
+  let className = `message-item ${type}`;
+  if (type === "consequence" && metadata?.success !== undefined) {
+    className += metadata.success ? " success" : " failure";
+  }
+
   return (
-    <div className={`message-item ${type}`}>
+    <div className={className}>
       <span className="message-time" style={{
         color: "var(--terminal-fg-dim)",
         fontSize: "11px",
