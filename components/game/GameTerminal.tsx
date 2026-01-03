@@ -5,19 +5,22 @@
  *
  * Main terminal-style game interface.
  * Combines all game UI components into a cohesive terminal experience.
+ * Integrates SSE streaming for real-time updates.
  */
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useGameSession } from "@/lib/hooks/useGameSession";
 import { useCurrentDirective } from "@/lib/hooks/useDirective";
-import { useMessages, useSignals, useGameStore } from "@/stores/game-store";
+import { useMessages, useSignals, useGameStore, useSelectedTemplate } from "@/stores/game-store";
 import { saveManager, SaveSlot } from "@/lib/saves/save-manager";
 import { MessageLog } from "./MessageLog";
 import { DirectivePanel } from "./DirectivePanel";
 import { StatusBar } from "./StatusBar";
 import { ActionInput } from "./ActionInput";
 import { SignalIndicator } from "./SignalIndicator";
+import { StreamStatusCompact } from "./StreamStatus";
+import { getTemplateLocationName } from "@/lib/game/templates";
 
 export function GameTerminal() {
   const router = useRouter();
@@ -34,6 +37,10 @@ export function GameTerminal() {
     sendAction,
     selectChoice,
     resetGame,
+    sseConnectionStatus,
+    isSSEConnected,
+    isProcessing,
+    selectedTemplate,
   } = useGameSession();
 
   const { directive } = useCurrentDirective();
@@ -66,6 +73,11 @@ export function GameTerminal() {
   };
 
   const getLocationName = (locationId: string) => {
+    // Use template-specific location names if available
+    if (selectedTemplate) {
+      return getTemplateLocationName(selectedTemplate, locationId);
+    }
+    // Fallback to default mapping
     const locations: Record<string, string> = {
       village_square: "마을 광장",
       tavern: "여관",
@@ -114,7 +126,7 @@ export function GameTerminal() {
         </div>
 
         <div className="error-actions">
-          <button onClick={initializeGame} className="error-button primary">
+          <button onClick={() => initializeGame()} className="error-button primary">
             다시 연결
           </button>
           <button onClick={resetGame} className="error-button secondary">
@@ -129,16 +141,26 @@ export function GameTerminal() {
     <div className="terminal-container">
       {/* Header */}
       <div className="terminal-header">
-        <span className="terminal-title">F2F Text Adventure</span>
+        <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+          <span className="terminal-title">
+            {selectedTemplate?.name || "F2F Text Adventure"}
+          </span>
+          <StreamStatusCompact
+            connectionStatus={sseConnectionStatus}
+            isProcessing={isProcessing}
+          />
+        </div>
         <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
           <SignalIndicator signals={signals} />
-          {isLoading && (
-            <span style={{ color: "var(--terminal-warning)" }}>처리 중...</span>
+          {(isLoading || isProcessing) && (
+            <span style={{ color: "var(--terminal-warning)" }}>
+              {isProcessing ? "응답 대기 중..." : "처리 중..."}
+            </span>
           )}
           <button
             className="header-button"
             onClick={() => setShowSaveDialog(true)}
-            disabled={isLoading}
+            disabled={isLoading || isProcessing}
           >
             저장
           </button>
@@ -207,7 +229,7 @@ export function GameTerminal() {
             <DirectivePanel
               directive={directive}
               onChoiceSelect={selectChoice}
-              disabled={isLoading}
+              disabled={isLoading || isProcessing}
             />
           )}
         </div>

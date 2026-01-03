@@ -5,10 +5,11 @@
  *
  * Displays the current directive from F2F-Engine.
  * Shows objective, clues, and choice buttons.
+ * Supports dynamic payload structure from GameSchema.
  */
 
-import { Directive, Choice } from "@/lib/engine/types";
-import { useDirectivePolling, useTTLDisplay } from "@/lib/hooks/useDirective";
+import { Directive, Choice, ClueItem } from "@/lib/engine/types";
+import { useDirectiveWithTTL, useTTLDisplay } from "@/lib/hooks/useDirective";
 import { ChoiceButtons } from "./ChoiceButtons";
 
 interface DirectivePanelProps {
@@ -17,18 +18,48 @@ interface DirectivePanelProps {
   disabled?: boolean;
 }
 
+/**
+ * Extract value from directive - checks both top-level fields and payload
+ */
+function getDirectiveField<T>(directive: Directive, field: string): T | undefined {
+  // First check top-level fields (for backward compatibility)
+  const directiveRecord = directive as unknown as Record<string, unknown>;
+  if (field in directiveRecord) {
+    return directiveRecord[field] as T;
+  }
+  // Then check payload
+  if (directive.payload && field in directive.payload) {
+    return directive.payload[field] as T;
+  }
+  return undefined;
+}
+
 export function DirectivePanel({
   directive,
   onChoiceSelect,
   disabled = false,
 }: DirectivePanelProps) {
-  const { remainingTTL, isUrgent } = useDirectivePolling({ enableTTL: true });
+  const { remainingTTL, isUrgent, isProcessing, shortMessage } = useDirectiveWithTTL();
   const ttlDisplay = useTTLDisplay(remainingTTL);
 
-  const { primary_verb, objective_text, choices, clues } = directive;
+  const { primary_verb } = directive;
+
+  // Get fields from directive (supports both legacy and payload-based)
+  const objectiveText = getDirectiveField<string>(directive, "objective_text");
+  const choices = getDirectiveField<Choice[]>(directive, "choices");
+  const clues = getDirectiveField<ClueItem[]>(directive, "clues");
+  const mood = getDirectiveField<string>(directive, "mood");
 
   return (
-    <div className="directive-panel">
+    <div className={`directive-panel ${mood ? `mood-${mood}` : ""}`}>
+      {/* Processing indicator */}
+      {isProcessing && shortMessage && (
+        <div className="processing-message">
+          <span className="processing-dots">...</span>
+          <span>{shortMessage}</span>
+        </div>
+      )}
+
       {/* Header with verb and TTL */}
       <div className="directive-header">
         <span className="directive-verb">[{primary_verb.toUpperCase()}]</span>
@@ -41,21 +72,31 @@ export function DirectivePanel({
       </div>
 
       {/* Objective */}
-      <div className="directive-objective">
-        <span className="prompt">&gt;</span>
-        <p className="objective-text">{objective_text}</p>
-      </div>
+      {objectiveText && (
+        <div className="directive-objective">
+          <span className="prompt">&gt;</span>
+          <p className="objective-text">{objectiveText}</p>
+        </div>
+      )}
 
       {/* Clues */}
       {clues && clues.length > 0 && (
         <div className="directive-clues">
           <span className="clue-label">[ CLUES ]</span>
-          {clues.map((clue) => (
-            <div key={clue.clue_id} className="clue-item">
-              <span className="clue-type">[{clue.type}]</span>
-              <span className="clue-content">{clue.content}</span>
-            </div>
-          ))}
+          {clues.map((clue, index) => {
+            // Handle both string and object formats
+            const isString = typeof clue === "string";
+            const key = isString ? `clue-${index}` : clue.clue_id || `clue-${index}`;
+            const content = isString ? clue : clue.content;
+            const type = isString ? "단서" : clue.type;
+
+            return (
+              <div key={key} className="clue-item">
+                <span className="clue-type">[{type}]</span>
+                <span className="clue-content">{content}</span>
+              </div>
+            );
+          })}
         </div>
       )}
 
@@ -64,9 +105,46 @@ export function DirectivePanel({
         <ChoiceButtons
           choices={choices}
           onSelect={onChoiceSelect}
-          disabled={disabled}
+          disabled={disabled || isProcessing}
         />
       )}
+
+      <style jsx>{`
+        .processing-message {
+          padding: 8px 12px;
+          margin-bottom: 12px;
+          background: rgba(0, 170, 255, 0.1);
+          border: 1px dashed rgba(0, 170, 255, 0.5);
+          color: #00aaff;
+          font-size: 12px;
+          display: flex;
+          align-items: center;
+          gap: 8px;
+        }
+
+        .processing-dots {
+          animation: pulse 1s ease-in-out infinite;
+        }
+
+        @keyframes pulse {
+          0%, 100% { opacity: 1; }
+          50% { opacity: 0.3; }
+        }
+
+        .mood-tense {
+          border-color: #ff6600 !important;
+        }
+
+        .mood-urgent {
+          border-color: #ff4444 !important;
+          animation: urgent-pulse 2s ease-in-out infinite;
+        }
+
+        @keyframes urgent-pulse {
+          0%, 100% { border-color: #ff4444; }
+          50% { border-color: #ff8888; }
+        }
+      `}</style>
     </div>
   );
 }

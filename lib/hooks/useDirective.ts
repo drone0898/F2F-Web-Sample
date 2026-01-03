@@ -4,18 +4,18 @@
  * useDirective Hook
  *
  * Manages directive state and TTL countdown.
- * Provides real-time directive updates and expiration handling.
+ * Directives are now received via SSE stream, not polling.
  */
 
-import { useEffect, useState, useCallback, useRef } from "react";
-import { useGameStore, useDirective as useDirectiveState, useDirectiveLite } from "@/stores/game-store";
-import { getDirective } from "@/lib/engine/actions";
+import { useEffect, useState, useRef } from "react";
+import {
+  useDirective as useDirectiveState,
+  useDirectiveLite,
+  useLoopState,
+  useShortMessage,
+} from "@/stores/game-store";
 
 interface UseDirectiveOptions {
-  /** Enable polling for directive updates */
-  enablePolling?: boolean;
-  /** Polling interval in milliseconds (default: 5000) */
-  pollInterval?: number;
   /** Enable TTL countdown */
   enableTTL?: boolean;
 }
@@ -31,22 +31,24 @@ interface UseDirectiveReturn {
   isUrgent: boolean;
   /** Whether the directive has expired */
   isExpired: boolean;
-  /** Manually refresh directive from server */
-  refreshDirective: () => Promise<void>;
+  /** Whether engine is processing (from SSE) */
+  isProcessing: boolean;
+  /** Short message from SSE */
+  shortMessage: string | null;
+  /** Loop state from SSE */
+  loopState: ReturnType<typeof useLoopState>;
 }
 
-export function useDirectivePolling(options: UseDirectiveOptions = {}): UseDirectiveReturn {
-  const {
-    enablePolling = false,
-    pollInterval = 5000,
-    enableTTL = true,
-  } = options;
+/**
+ * Main directive hook - uses SSE state, no polling
+ */
+export function useDirectiveState2(options: UseDirectiveOptions = {}): UseDirectiveReturn {
+  const { enableTTL = true } = options;
 
   const directive = useDirectiveState();
   const directiveLite = useDirectiveLite();
-  const sessionId = useGameStore((s) => s.sessionId);
-  const setDirective = useGameStore((s) => s.setDirective);
-  const setDirectiveLite = useGameStore((s) => s.setDirectiveLite);
+  const loopState = useLoopState();
+  const shortMessage = useShortMessage();
 
   const [remainingTTL, setRemainingTTL] = useState<number | null>(null);
   const [isExpired, setIsExpired] = useState(false);
@@ -93,53 +95,8 @@ export function useDirectivePolling(options: UseDirectiveOptions = {}): UseDirec
     };
   }, [directive, enableTTL]);
 
-  // Polling for directive updates
-  useEffect(() => {
-    if (!enablePolling || !sessionId) return;
-
-    const poll = async () => {
-      try {
-        const result = await getDirective(sessionId);
-        if (result.success) {
-          if (result.directive) {
-            setDirective(result.directive);
-          }
-          if (result.directiveLite) {
-            setDirectiveLite(result.directiveLite);
-          }
-        }
-      } catch (error) {
-        console.error("Failed to poll directive:", error);
-      }
-    };
-
-    const intervalId = setInterval(poll, pollInterval);
-
-    return () => {
-      clearInterval(intervalId);
-    };
-  }, [enablePolling, pollInterval, sessionId, setDirective, setDirectiveLite]);
-
-  // Manual refresh
-  const refreshDirective = useCallback(async () => {
-    if (!sessionId) return;
-
-    try {
-      const result = await getDirective(sessionId);
-      if (result.success) {
-        if (result.directive) {
-          setDirective(result.directive);
-        }
-        if (result.directiveLite) {
-          setDirectiveLite(result.directiveLite);
-        }
-      }
-    } catch (error) {
-      console.error("Failed to refresh directive:", error);
-    }
-  }, [sessionId, setDirective, setDirectiveLite]);
-
   const isUrgent = remainingTTL !== null && remainingTTL > 0 && remainingTTL < 30;
+  const isProcessing = loopState === "DECIDE" || loopState === "GENERATE";
 
   return {
     directive,
@@ -147,29 +104,38 @@ export function useDirectivePolling(options: UseDirectiveOptions = {}): UseDirec
     remainingTTL,
     isUrgent,
     isExpired,
-    refreshDirective,
+    isProcessing,
+    shortMessage,
+    loopState,
   };
 }
 
 /**
- * Simple hook for accessing directive state without polling
+ * Simple hook for accessing directive state
  */
 export function useCurrentDirective() {
   const directive = useDirectiveState();
   const directiveLite = useDirectiveLite();
+  const loopState = useLoopState();
+  const shortMessage = useShortMessage();
+
+  const isProcessing = loopState === "DECIDE" || loopState === "GENERATE";
 
   return {
     directive,
     directiveLite,
     hasDirective: directive !== null,
     hasDirectiveLite: directiveLite !== null,
+    isProcessing,
+    shortMessage,
+    loopState,
   };
 }
 
 /**
  * Hook for formatting TTL display
  */
-export function useTTLDisplay(ttlSeconds: number | null) {
+export function useTTLDisplay(ttlSeconds: number | null): string | null {
   if (ttlSeconds === null) return null;
 
   const minutes = Math.floor(ttlSeconds / 60);
@@ -180,4 +146,11 @@ export function useTTLDisplay(ttlSeconds: number | null) {
   }
 
   return `${seconds}초`;
+}
+
+/**
+ * Hook for directive with TTL management
+ */
+export function useDirectiveWithTTL() {
+  return useDirectiveState2({ enableTTL: true });
 }

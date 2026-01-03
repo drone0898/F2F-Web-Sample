@@ -960,6 +960,16 @@ body {
   color: var(--terminal-bg);
 }
 
+/* Template Selection */
+.template-select-view {
+  max-width: 900px;
+}
+
+.template-subtitle {
+  color: rgba(255, 255, 255, 0.6);
+  margin-bottom: 2rem;
+}
+
 /* Responsive */
 @media (max-width: 768px) {
   .terminal-body {

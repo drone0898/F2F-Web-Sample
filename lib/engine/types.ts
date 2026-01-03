@@ -9,6 +9,92 @@ export type FactType = "ACTION" | "STATE_CHANGE" | "SYSTEM" | "WORLD";
 export type SignalType = "TENSION" | "REPETITION" | "STAGNATION" | "DIFFICULTY" | "PROGRESS";
 export type TickMode = "slow" | "lite" | "both";
 
+// ============== Schema Types ==============
+
+export type SchemaFormat = "F2F_SCHEMA_V1" | "JSON_SCHEMA_2020_12";
+
+export interface FieldSpec {
+  type: "string" | "number" | "boolean" | "object" | "array";
+  required?: boolean;
+  enum?: string[];
+  description?: string;
+}
+
+export interface SchemaSpec {
+  format?: SchemaFormat;
+  schema: Record<string, FieldSpec>;
+  preset_id?: string;
+}
+
+export interface FactVerbSpec {
+  description?: string;
+  attributes_schema?: SchemaSpec;
+  triggers_decision?: boolean;
+  semantic_hint?: string;
+}
+
+export interface GameSchema {
+  fact_verb_specs: Record<string, FactVerbSpec>;
+  directive_payload_schema?: SchemaSpec;
+}
+
+// ============== Session Runtime Config Types ==============
+
+export interface SessionRuntimeTiming {
+  decision_period_seconds?: number;
+  idle_threshold_seconds?: number;
+  fact_timeout_seconds?: number;
+  f2f_timeout_seconds?: number;
+}
+
+export interface SessionRuntimeTriggers {
+  decision_verbs?: string[];
+  passthrough_verbs?: string[];
+}
+
+export interface SessionRuntimeOutput {
+  short_message?: boolean;
+  include_state_events?: boolean;
+}
+
+export interface SessionRuntimeConfig {
+  timing?: SessionRuntimeTiming;
+  triggers?: SessionRuntimeTriggers;
+  output?: SessionRuntimeOutput;
+  system_prompt_override?: string;
+}
+
+// ============== Stream Event Types ==============
+
+export type LoopStatus = "WAIT" | "DECIDE" | "GENERATE" | "PAUSE" | "ERROR";
+export type SSEConnectionStatus = "connecting" | "connected" | "disconnected" | "error";
+
+export interface LoopStateUpdate {
+  status: LoopStatus;
+  detail?: string;
+}
+
+export interface ShortMessage {
+  message: string;
+}
+
+export interface EngineErrorEvent {
+  code: string;
+  message: string;
+  recoverable: boolean;
+}
+
+export interface StreamEvent {
+  session_id: string;
+  ts: string;
+  event_id: string;
+  state?: LoopStateUpdate;
+  short_message?: ShortMessage;
+  directive?: Directive;
+  directive_lite?: DirectiveLite;
+  error?: EngineErrorEvent;
+}
+
 // ============== Data Models ==============
 
 export interface Fact {
@@ -43,6 +129,9 @@ export interface Clue {
   content: string;
   target_id?: string;
 }
+
+// Clue can be either a full Clue object or a simple string
+export type ClueItem = Clue | string;
 
 export interface OutcomeChange {
   metric: string;
@@ -206,6 +295,8 @@ export interface Trace {
 export interface StartSessionRequest {
   session_id: string;
   game_id: string;
+  game_schema?: GameSchema;
+  session_runtime_config?: SessionRuntimeConfig;
 }
 
 export interface StartSessionResponse {
@@ -303,4 +394,26 @@ export interface GameState {
   location: string;
   reputation: number;
   flags: Record<string, boolean>;
+}
+
+// ============== Additional API Request/Response ==============
+
+export interface SetGameSchemaRequest {
+  session_id: string;
+  game_schema: GameSchema;
+}
+
+export interface SetGameSchemaResponse {
+  session_id: string;
+  status: string;
+}
+
+export interface SetSessionRuntimeConfigRequest {
+  session_id: string;
+  session_runtime_config: SessionRuntimeConfig;
+}
+
+export interface SetSessionRuntimeConfigResponse {
+  session_id: string;
+  status: string;
 }

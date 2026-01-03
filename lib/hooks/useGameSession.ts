@@ -4,7 +4,7 @@
  * useGameSession Hook
  *
  * Manages game session lifecycle and player actions.
- * Handles initialization, action sending, and state updates.
+ * Handles initialization, action sending, SSE streaming, and state updates.
  */
 
 import { useCallback, useTransition, useRef } from "react";
@@ -19,7 +19,8 @@ import { createFactBuilder } from "@/lib/game/fact-builder";
 import { determineSuccess } from "@/lib/game/success-resolver";
 import { outcomeChangesToOps } from "@/lib/game/outcome-ops";
 import { Choice } from "@/lib/engine/types";
-import { getLocation } from "@/lib/game/capabilities";
+import { useSSEStream } from "./useSSEStream";
+import { GameTemplate, getTemplateLocation } from "@/lib/game/templates";
 
 export function useGameSession() {
   const [isPending, startTransition] = useTransition();
@@ -30,6 +31,7 @@ export function useGameSession() {
     isInitialized,
     isConnected,
     worldSnapshot,
+    selectedTemplate,
     setSessionId,
     setInitialized,
     setConnected,
@@ -47,8 +49,30 @@ export function useGameSession() {
     reset,
   } = useGameStore();
 
-  // Initialize game session
-  const initializeGame = useCallback(async () => {
+  // SSE Stream connection
+  const {
+    connectionStatus: sseConnectionStatus,
+    loopState,
+    shortMessage,
+    connect: connectSSE,
+    disconnect: disconnectSSE,
+    isConnected: isSSEConnected,
+    isProcessing,
+  } = useSSEStream({
+    sessionId,
+    enabled: isInitialized,
+  });
+
+  // Initialize game session with template
+  const initializeGame = useCallback(async (template?: GameTemplate) => {
+    // Use provided template or selectedTemplate from store
+    const gameTemplate = template ?? selectedTemplate;
+
+    if (!gameTemplate) {
+      setError("게임 템플릿을 선택해주세요.");
+      return;
+    }
+
     // Prevent double initialization (React Strict Mode)
     if (initializingRef.current) {
       return;
@@ -74,19 +98,24 @@ export function useGameSession() {
           return;
         }
 
-        // Initialize with engine
-        const result = await startGameSession(newSessionId);
+        // Initialize with engine using template
+        const result = await startGameSession(newSessionId, gameTemplate);
 
         if (result.success) {
           setWorldSnapshot(result.worldSnapshot);
           setInitialized(true);
           addSystemMessage("F2F-Engine에 연결되었습니다.");
-          addSystemMessage("게임을 시작합니다. 마을 광장에 서 있습니다.");
+          addSystemMessage(`게임을 시작합니다: ${gameTemplate.name}`);
 
-          const location = getLocation("village_square");
+          // Get initial location from template
+          const initialLocation = gameTemplate.initialWorldState.location as string;
+          const location = getTemplateLocation(gameTemplate, initialLocation);
           if (location) {
+            addSystemMessage(`현재 위치: ${location.name}`);
             addSystemMessage(location.description);
           }
+
+          // SSE will auto-connect via useSSEStream hook
         } else {
           setError(result.error ?? "게임을 시작할 수 없습니다.");
           setInitialized(false);
@@ -103,6 +132,7 @@ export function useGameSession() {
       }
     });
   }, [
+    selectedTemplate,
     setSessionId,
     setLoading,
     setError,
@@ -320,20 +350,35 @@ export function useGameSession() {
 
   // Reset and start new game
   const resetGame = useCallback(() => {
+    disconnectSSE();
     initializingRef.current = false;
     reset();
-    initializeGame();
-  }, [reset, initializeGame]);
+  }, [reset, disconnectSSE]);
 
   return {
+    // Session state
     sessionId,
     isInitialized,
     isLoading: isPending || useGameStore.getState().isLoading,
     error: useGameStore.getState().error,
     gameState: getGameState(),
+
+    // SSE state
+    sseConnectionStatus,
+    isSSEConnected,
+    isProcessing,
+    loopState,
+    shortMessage,
+
+    // Template
+    selectedTemplate,
+
+    // Actions
     initializeGame,
     sendAction,
     selectChoice,
     resetGame,
+    connectSSE,
+    disconnectSSE,
   };
 }

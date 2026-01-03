@@ -12,36 +12,15 @@ import {
   Fact,
   WorldSnapshot,
   WorldSnapshotPatch,
-  Capabilities,
   Directive,
   DirectiveLite,
   TickResponse,
   TickMode,
   ChoiceResult,
+  GameSchema,
+  SessionRuntimeConfig,
 } from "./types";
-
-const GAME_ID = "text_adventure";
-
-// Default capabilities for the web demo
-const DEFAULT_CAPABILITIES: Capabilities = {
-  game_id: GAME_ID,
-  supports_channels: ["text", "choice_menu", "quest_log", "notification"],
-  supports_actions: ["display_text", "show_choices", "update_status"],
-  limits: {
-    max_choices: 4,
-    max_text_len: 300,
-  },
-};
-
-// Initial world state
-const INITIAL_WORLD_STATE = {
-  hp: 100,
-  max_hp: 100,
-  gold: 50,
-  location: "village_square",
-  reputation: 0,
-  flags: {},
-};
+import { GameTemplate } from "@/lib/game/templates";
 
 export interface StartGameResult {
   success: boolean;
@@ -67,23 +46,29 @@ export interface GetDirectiveResult {
 }
 
 /**
- * Start a new game session
+ * Start a new game session with a template
  */
 export async function startGameSession(
-  sessionId: string
+  sessionId: string,
+  template: GameTemplate
 ): Promise<StartGameResult> {
   try {
-    // 1. Start session
-    await engineClient.startSession(sessionId, GAME_ID);
+    // 1. Start session with schema and runtime config
+    await engineClient.startSession(
+      sessionId,
+      template.id,
+      template.gameSchema,
+      template.runtimeConfig
+    );
 
-    // 2. Set capabilities
-    await engineClient.setCapabilities(sessionId, DEFAULT_CAPABILITIES);
+    // 2. Set capabilities from template
+    await engineClient.setCapabilities(sessionId, template.capabilities);
 
-    // 3. Create and set initial world snapshot
+    // 3. Create and set initial world snapshot from template
     const worldSnapshot: WorldSnapshot = {
       session_id: sessionId,
       ts: new Date().toISOString(),
-      state: { ...INITIAL_WORLD_STATE },
+      state: { ...template.initialWorldState },
       entities: [],
     };
     await engineClient.setWorldSnapshot(sessionId, worldSnapshot);
@@ -101,13 +86,57 @@ export async function startGameSession(
       worldSnapshot: {
         session_id: sessionId,
         ts: new Date().toISOString(),
-        state: { ...INITIAL_WORLD_STATE },
+        state: { ...template.initialWorldState },
         entities: [],
       },
       error:
         error instanceof EngineError
           ? error.message
           : "Failed to connect to engine",
+    };
+  }
+}
+
+/**
+ * Update game schema for an existing session
+ */
+export async function updateGameSchema(
+  sessionId: string,
+  gameSchema: GameSchema
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    await engineClient.setGameSchema(sessionId, gameSchema);
+    return { success: true };
+  } catch (error) {
+    console.error("Failed to update game schema:", error);
+    return {
+      success: false,
+      error:
+        error instanceof EngineError
+          ? error.message
+          : "Failed to update game schema",
+    };
+  }
+}
+
+/**
+ * Update session runtime config
+ */
+export async function updateRuntimeConfig(
+  sessionId: string,
+  config: SessionRuntimeConfig
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    await engineClient.setSessionRuntimeConfig(sessionId, config);
+    return { success: true };
+  } catch (error) {
+    console.error("Failed to update runtime config:", error);
+    return {
+      success: false,
+      error:
+        error instanceof EngineError
+          ? error.message
+          : "Failed to update runtime config",
     };
   }
 }

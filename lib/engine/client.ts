@@ -11,6 +11,8 @@ import {
   SetCapabilitiesResponse,
   SetWorldSnapshotResponse,
   PatchWorldSnapshotResponse,
+  SetGameSchemaResponse,
+  SetSessionRuntimeConfigResponse,
   TickResponse,
   Fact,
   WorldSnapshot,
@@ -19,6 +21,8 @@ import {
   Directive,
   DirectiveLite,
   TickMode,
+  GameSchema,
+  SessionRuntimeConfig,
 } from "./types";
 
 const ENGINE_URL = process.env.F2F_ENGINE_URL || "http://localhost:5001";
@@ -92,12 +96,52 @@ export class F2FEngineClient {
    */
   async startSession(
     sessionId: string,
-    gameId: string
+    gameId: string,
+    gameSchema?: GameSchema,
+    sessionRuntimeConfig?: SessionRuntimeConfig
   ): Promise<StartSessionResponse> {
     return this.request<StartSessionResponse>("POST", "/v1/sessions/start", {
       session_id: sessionId,
       game_id: gameId,
+      game_schema: gameSchema,
+      session_runtime_config: sessionRuntimeConfig,
     });
+  }
+
+  /**
+   * Set or update game schema
+   */
+  async setGameSchema(
+    sessionId: string,
+    gameSchema: GameSchema
+  ): Promise<SetGameSchemaResponse> {
+    return this.request<SetGameSchemaResponse>(
+      "POST",
+      "/v1/game-schema/set",
+      {
+        session_id: sessionId,
+        game_schema: gameSchema,
+      },
+      sessionId
+    );
+  }
+
+  /**
+   * Set or update session runtime config
+   */
+  async setSessionRuntimeConfig(
+    sessionId: string,
+    config: SessionRuntimeConfig
+  ): Promise<SetSessionRuntimeConfigResponse> {
+    return this.request<SetSessionRuntimeConfigResponse>(
+      "POST",
+      "/v1/session/runtime-config/set",
+      {
+        session_id: sessionId,
+        session_runtime_config: config,
+      },
+      sessionId
+    );
   }
 
   /**
@@ -245,7 +289,24 @@ export class F2FEngineClient {
       "/version"
     );
   }
+
+  /**
+   * Get SSE stream URL for a session
+   */
+  getStreamUrl(sessionId: string): string {
+    return `${this.baseUrl}/v1/directives/stream?session_id=${encodeURIComponent(sessionId)}`;
+  }
+
+  /**
+   * Get the base URL
+   */
+  getBaseUrl(): string {
+    return this.baseUrl;
+  }
 }
 
 // Singleton instance
 export const engineClient = new F2FEngineClient();
+
+// Export ENGINE_URL for SSE client
+export { ENGINE_URL };

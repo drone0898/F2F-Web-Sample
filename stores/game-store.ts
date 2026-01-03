@@ -2,7 +2,7 @@
  * Game State Store (Zustand)
  *
  * Central state management for the game.
- * Handles session, world state, directives, and message history.
+ * Handles session, world state, directives, SSE state, and message history.
  */
 
 import { create } from "zustand";
@@ -15,14 +15,26 @@ import {
   GameMessage,
   GameState,
   Outcome,
+  StreamEvent,
+  SSEConnectionStatus,
+  LoopStatus,
 } from "@/lib/engine/types";
 import { saveManager, SaveData } from "@/lib/saves/save-manager";
+import { GameTemplate } from "@/lib/game/templates";
 
 interface GameStore {
   // Session
   sessionId: string | null;
   isInitialized: boolean;
   isConnected: boolean;
+
+  // Template
+  selectedTemplate: GameTemplate | null;
+
+  // SSE State
+  sseConnectionStatus: SSEConnectionStatus;
+  loopState: LoopStatus | null;
+  shortMessage: string | null;
 
   // World State
   worldSnapshot: WorldSnapshot | null;
@@ -44,6 +56,15 @@ interface GameStore {
   setSessionId: (id: string) => void;
   setInitialized: (value: boolean) => void;
   setConnected: (value: boolean) => void;
+
+  // Actions - Template
+  setSelectedTemplate: (template: GameTemplate | null) => void;
+
+  // Actions - SSE
+  setSSEConnectionStatus: (status: SSEConnectionStatus) => void;
+  setLoopState: (state: LoopStatus | null) => void;
+  setShortMessage: (message: string | null) => void;
+  handleStreamEvent: (event: StreamEvent) => void;
 
   // Actions - World
   setWorldSnapshot: (snapshot: WorldSnapshot) => void;
@@ -86,6 +107,10 @@ const initialState = {
   sessionId: null,
   isInitialized: false,
   isConnected: false,
+  selectedTemplate: null,
+  sseConnectionStatus: "disconnected" as SSEConnectionStatus,
+  loopState: null,
+  shortMessage: null,
   worldSnapshot: null,
   signals: [],
   currentDirective: null,
@@ -114,6 +139,47 @@ export const useGameStore = create<GameStore>()(
       setSessionId: (id) => set({ sessionId: id }),
       setInitialized: (value) => set({ isInitialized: value }),
       setConnected: (value) => set({ isConnected: value }),
+
+      // Template Actions
+      setSelectedTemplate: (template) => set({ selectedTemplate: template }),
+
+      // SSE Actions
+      setSSEConnectionStatus: (status) => set({ sseConnectionStatus: status }),
+      setLoopState: (state) => set({ loopState: state }),
+      setShortMessage: (message) => set({ shortMessage: message }),
+
+      handleStreamEvent: (event) => {
+        // Handle state change
+        if (event.state) {
+          set({ loopState: event.state.status });
+        }
+
+        // Handle short message
+        if (event.short_message) {
+          set({ shortMessage: event.short_message.message });
+        }
+
+        // Handle directive
+        if (event.directive) {
+          const directive = event.directive;
+          set((state) => ({
+            currentDirective: directive,
+            directiveHistory: [...state.directiveHistory, directive].slice(-10),
+            shortMessage: null, // Clear short message when directive arrives
+            loopState: null, // Reset loop state
+          }));
+        }
+
+        // Handle directive lite
+        if (event.directive_lite) {
+          set({ currentDirectiveLite: event.directive_lite });
+        }
+
+        // Handle error
+        if (event.error) {
+          set({ error: event.error.message });
+        }
+      },
 
       // World Actions
       setWorldSnapshot: (snapshot) => set({ worldSnapshot: snapshot }),
@@ -290,3 +356,11 @@ export const useDirective = () => useGameStore((s) => s.currentDirective);
 export const useDirectiveLite = () => useGameStore((s) => s.currentDirectiveLite);
 export const useSignals = () => useGameStore((s) => s.signals);
 export const useGameState = () => useGameStore((s) => s.getGameState());
+
+// Template selectors
+export const useSelectedTemplate = () => useGameStore((s) => s.selectedTemplate);
+
+// SSE selectors
+export const useSSEConnectionStatus = () => useGameStore((s) => s.sseConnectionStatus);
+export const useLoopState = () => useGameStore((s) => s.loopState);
+export const useShortMessage = () => useGameStore((s) => s.shortMessage);

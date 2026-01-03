@@ -4,8 +4,10 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useGameStore } from "@/stores/game-store";
 import { saveManager, SaveSlot } from "@/lib/saves/save-manager";
+import { TemplateSelector } from "@/components/game/TemplateSelector";
+import { GameTemplate, listTemplates, getTemplateLocationName } from "@/lib/game/templates";
 
-type ViewMode = "main" | "load";
+type ViewMode = "main" | "load" | "select-template";
 
 export default function HomePage() {
   const router = useRouter();
@@ -14,14 +16,35 @@ export default function HomePage() {
   const [deleteConfirm, setDeleteConfirm] = useState<number | null>(null);
   const reset = useGameStore((s) => s.reset);
   const loadFromSlot = useGameStore((s) => s.loadFromSlot);
+  const setSelectedTemplate = useGameStore((s) => s.setSelectedTemplate);
+  const selectedTemplate = useGameStore((s) => s.selectedTemplate);
 
   // Load save slots on mount
   useEffect(() => {
     setSlots(saveManager.getSlots());
   }, [viewMode]);
 
-  const handleNewGame = () => {
+  // Clear localStorage on fresh start (development)
+  useEffect(() => {
+    // Reset persisted state on page load
+    localStorage.removeItem("f2f-game-storage");
     reset();
+  }, [reset]);
+
+  const handleNewGame = () => {
+    const templates = listTemplates();
+    if (templates.length === 1) {
+      // Only one template, select it directly
+      setSelectedTemplate(templates[0]);
+      router.push("/game");
+    } else {
+      // Multiple templates, show selector
+      setViewMode("select-template");
+    }
+  };
+
+  const handleTemplateSelect = (template: GameTemplate) => {
+    setSelectedTemplate(template);
     router.push("/game");
   };
 
@@ -49,6 +72,11 @@ export default function HomePage() {
   };
 
   const getLocationName = (locationId: string) => {
+    // Try to get from selected template first
+    if (selectedTemplate) {
+      return getTemplateLocationName(selectedTemplate, locationId);
+    }
+    // Fallback to default mapping
     const locations: Record<string, string> = {
       village_square: "마을 광장",
       tavern: "여관",
@@ -61,6 +89,30 @@ export default function HomePage() {
   };
 
   const hasSaves = slots.some((slot) => slot !== null);
+
+  // Template Selection View
+  if (viewMode === "select-template") {
+    return (
+      <div className="home-container">
+        <div className="home-content template-select-view">
+          <h2 className="save-title">[ 게임 선택 ]</h2>
+          <p className="template-subtitle">플레이할 게임을 선택하세요</p>
+
+          <TemplateSelector
+            onSelect={handleTemplateSelect}
+            selectedTemplateId={selectedTemplate?.id}
+          />
+
+          <button
+            onClick={() => setViewMode("main")}
+            className="back-button"
+          >
+            [ 뒤로 ]
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   // Load Game View
   if (viewMode === "load") {
@@ -158,12 +210,11 @@ export default function HomePage() {
 `}
         </pre>
 
-        <h1 className="home-title">상인 마을의 실종 사건</h1>
-        <p className="home-subtitle">중세 판타지 텍스트 어드벤처</p>
+        <h1 className="home-title">F2F Text Adventure</h1>
+        <p className="home-subtitle">Facts to Fun Engine Demo</p>
 
         <div className="home-description">
-          <p>당신은 상인 마을에 도착한 여행자입니다.</p>
-          <p>최근 마을에서 연이은 실종 사건이 발생했습니다.</p>
+          <p>F2F-Engine과 연동된 텍스트 어드벤처 게임입니다.</p>
           <p>당신의 선택이 이야기를 만들어갑니다.</p>
         </div>
 
