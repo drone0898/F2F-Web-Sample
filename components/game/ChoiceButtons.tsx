@@ -3,12 +3,12 @@
 /**
  * ChoiceButtons Component
  *
- * Displays directive choices as interactive buttons.
+ * Displays experience choices as interactive buttons.
  * Supports keyboard shortcuts (1-4).
  */
 
 import { useEffect, useCallback } from "react";
-import { Choice } from "@/lib/engine/types";
+import { type Choice } from "@/lib/engine/sdk-bridge";
 
 interface ChoiceButtonsProps {
   choices: Choice[];
@@ -25,7 +25,6 @@ export function ChoiceButtons({
 }: ChoiceButtonsProps) {
   const displayChoices = choices.slice(0, maxChoices);
 
-  // Keyboard shortcut handler
   const handleKeyDown = useCallback(
     (event: KeyboardEvent) => {
       if (disabled) return;
@@ -39,7 +38,6 @@ export function ChoiceButtons({
     [disabled, displayChoices, onSelect]
   );
 
-  // Register keyboard listener
   useEffect(() => {
     window.addEventListener("keydown", handleKeyDown);
     return () => {
@@ -69,7 +67,6 @@ export function ChoiceButtons({
         </button>
       ))}
 
-      {/* Hint for keyboard shortcuts */}
       <div
         style={{
           marginTop: "8px",

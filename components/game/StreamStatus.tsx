@@ -6,7 +6,7 @@
  * Displays SSE connection status, loop state, and short messages.
  */
 
-import { SSEConnectionStatus, LoopStatus } from "@/lib/engine/types";
+import { type SSEConnectionStatus, type LoopStatus } from "@/lib/engine/sdk-bridge";
 
 interface StreamStatusProps {
   connectionStatus: SSEConnectionStatus;
@@ -26,7 +26,7 @@ const CONNECTION_STATUS_CONFIG: Record<
 };
 
 const LOOP_STATE_CONFIG: Record<
-  LoopStatus,
+  string,
   { label: string; color: string }
 > = {
   WAIT: { label: "대기 중", color: "#888888" },
@@ -129,9 +129,6 @@ export function StreamStatus({
   );
 }
 
-/**
- * Animated loading dots
- */
 function LoadingDots() {
   return (
     <span className="loading-dots">
@@ -161,9 +158,6 @@ function LoadingDots() {
   );
 }
 
-/**
- * Compact version for header
- */
 export function StreamStatusCompact({
   connectionStatus,
   isProcessing,

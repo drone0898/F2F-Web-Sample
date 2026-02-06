@@ -5,8 +5,8 @@ services:
   # Web Application (Next.js)
   web:
     build:
-      context: .
-      dockerfile: Dockerfile
+      context: ..
+      dockerfile: F2F-web-sample/Dockerfile
     ports:
       - "3000:3000"
     environment:

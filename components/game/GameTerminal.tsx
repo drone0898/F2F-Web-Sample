@@ -11,11 +11,11 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useGameSession } from "@/lib/hooks/useGameSession";
-import { useCurrentDirective } from "@/lib/hooks/useDirective";
+import { useCurrentExperience } from "@/lib/hooks/useExperience";
 import { useMessages, useSignals, useGameStore, useSelectedTemplate } from "@/stores/game-store";
 import { saveManager, SaveSlot } from "@/lib/saves/save-manager";
 import { MessageLog } from "./MessageLog";
-import { DirectivePanel } from "./DirectivePanel";
+import { ExperiencePanel } from "./ExperiencePanel";
 import { StatusBar } from "./StatusBar";
 import { ActionInput } from "./ActionInput";
 import { SignalIndicator } from "./SignalIndicator";
@@ -43,7 +43,7 @@ export function GameTerminal() {
     selectedTemplate,
   } = useGameSession();
 
-  const { directive } = useCurrentDirective();
+  const { experience } = useCurrentExperience();
   const messages = useMessages();
   const signals = useSignals();
   const saveToSlot = useGameStore((s) => s.saveToSlot);
@@ -73,11 +73,9 @@ export function GameTerminal() {
   };
 
   const getLocationName = (locationId: string) => {
-    // Use template-specific location names if available
     if (selectedTemplate) {
       return getTemplateLocationName(selectedTemplate, locationId);
     }
-    // Fallback to default mapping
     const locations: Record<string, string> = {
       village_square: "마을 광장",
       tavern: "여관",
@@ -225,9 +223,9 @@ export function GameTerminal() {
         <div className="terminal-main">
           <MessageLog messages={messages} />
 
-          {directive && (
-            <DirectivePanel
-              directive={directive}
+          {experience && (
+            <ExperiencePanel
+              experience={experience}
               onChoiceSelect={selectChoice}
               disabled={isLoading || isProcessing}
             />

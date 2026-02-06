@@ -4,10 +4,9 @@
  * SignalIndicator Component
  *
  * Displays F2F-Engine signal values.
- * Shows tension, progress, and other game dynamics.
  */
 
-import { Signal } from "@/lib/engine/types";
+import { type Signal } from "@/lib/engine/sdk-bridge";
 
 interface SignalIndicatorProps {
   signals: Signal[];
@@ -26,12 +25,10 @@ export function SignalIndicator({ signals }: SignalIndicatorProps) {
     return null;
   }
 
-  // Get most recent signals (10s window preferred)
   const recentSignals = signals.filter(
     (s) => s.window_seconds === 10 || signals.length <= 5
   );
 
-  // Filter to key signals
   const keySignals = recentSignals.filter((s) =>
     ["TENSION", "PROGRESS", "STAGNATION"].includes(s.type)
   );
@@ -56,11 +53,9 @@ interface SignalDotProps {
 function SignalDot({ signal }: SignalDotProps) {
   const { type, value, delta } = signal;
 
-  // Determine level based on value
   const level: "low" | "medium" | "high" =
     value > 0.7 ? "high" : value > 0.4 ? "medium" : "low";
 
-  // Determine trend
   const trend = delta > 0.05 ? "↑" : delta < -0.05 ? "↓" : "";
 
   const label = SIGNAL_LABELS[type] ?? type;
@@ -84,9 +79,6 @@ function SignalDot({ signal }: SignalDotProps) {
   );
 }
 
-/**
- * Compact signal bar for inline display
- */
 interface SignalBarProps {
   label: string;
   value: number;

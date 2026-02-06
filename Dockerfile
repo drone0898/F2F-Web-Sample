@@ -1,5 +1,8 @@
 # F2F Web Sample - Production Dockerfile
 # Multi-stage build for Next.js 16 standalone output
+#
+# Build context: parent directory (../) containing both F2F-web-sample and F2F-Engine
+# This is needed because @f2f-engine/sdk is a local file reference.
 
 # ========================================
 # Stage 1: Dependencies
@@ -7,22 +10,30 @@
 FROM node:22-alpine AS deps
 RUN apk add --no-cache libc6-compat
 
-WORKDIR /app
+WORKDIR /workspace/F2F-web-sample
 
-# Install dependencies based on package-lock.json
-COPY package.json package-lock.json* ./
-RUN npm ci --only=production
+# Copy SDK source (needed for file: reference in package.json)
+COPY F2F-Engine/packages/sdk-ts/ /workspace/F2F-Engine/packages/sdk-ts/
+
+# Install dependencies
+COPY F2F-web-sample/package.json F2F-web-sample/package-lock.json* ./
+RUN npm ci
 
 # ========================================
 # Stage 2: Builder
 # ========================================
 FROM node:22-alpine AS builder
 
-WORKDIR /app
+WORKDIR /workspace/F2F-web-sample
+
+# Copy SDK source (needed for webpack alias in next.config.ts)
+COPY F2F-Engine/packages/sdk-ts/ /workspace/F2F-Engine/packages/sdk-ts/
 
 # Copy dependencies from deps stage
-COPY --from=deps /app/node_modules ./node_modules
-COPY . .
+COPY --from=deps /workspace/F2F-web-sample/node_modules ./node_modules
+
+# Copy application source
+COPY F2F-web-sample/ .
 
 # Set environment for build
 ENV NEXT_TELEMETRY_DISABLED=1
@@ -49,9 +60,9 @@ RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 nextjs
 
 # Copy necessary files from builder
-COPY --from=builder /app/public ./public
-COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
-COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
+COPY --from=builder /workspace/F2F-web-sample/public ./public
+COPY --from=builder --chown=nextjs:nodejs /workspace/F2F-web-sample/.next/standalone ./
+COPY --from=builder --chown=nextjs:nodejs /workspace/F2F-web-sample/.next/static ./.next/static
 
 # Switch to non-root user
 USER nextjs

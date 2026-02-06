@@ -2,61 +2,49 @@
  * Game Capabilities Configuration
  *
  * Defines what the web game client can express and handle.
- * This is sent to F2F-Engine to guide directive generation.
+ * This is sent to F2F-Engine to guide experience generation.
  */
 
-import { Capabilities } from "@/lib/engine/types";
+import { type Capabilities, type JsonValue } from "@/lib/engine/sdk-bridge";
 
 export const GAME_ID = "text_adventure";
 
-/**
- * Channels the game supports for displaying content
- */
 export const SUPPORTED_CHANNELS = [
-  "text",           // Plain text messages
-  "choice_menu",    // Multiple choice options
-  "quest_log",      // Quest/objective display
-  "notification",   // System notifications
-  "dialogue",       // NPC dialogue
-  "narration",      // Story narration
+  "text",
+  "choice_menu",
+  "quest_log",
+  "notification",
+  "dialogue",
+  "narration",
 ] as const;
 
-/**
- * Actions the game can perform in response to directives
- */
 export const SUPPORTED_ACTIONS = [
-  "display_text",    // Show text to player
-  "show_choices",    // Display choice buttons
-  "update_status",   // Update status bar (HP, gold, etc.)
-  "play_sound",      // Play audio (placeholder)
-  "show_image",      // Display image (placeholder)
-  "set_flag",        // Set a game flag
-  "give_item",       // Add item to inventory
-  "remove_item",     // Remove item from inventory
-  "change_location", // Change player location
+  "display_text",
+  "show_choices",
+  "update_status",
+  "play_sound",
+  "show_image",
+  "set_flag",
+  "give_item",
+  "remove_item",
+  "change_location",
 ] as const;
 
-/**
- * Default capabilities for the text adventure game
- */
 export const DEFAULT_CAPABILITIES: Capabilities = {
   game_id: GAME_ID,
   supports_channels: [...SUPPORTED_CHANNELS],
   supports_actions: [...SUPPORTED_ACTIONS],
   limits: {
-    max_choices: 4,           // Maximum number of choices to display
-    max_text_len: 300,        // Maximum text length per message
-    max_clues: 3,             // Maximum clues to display at once
-    supports_timers: false,   // Real-time countdown timers
-    supports_typing: true,    // Free-form text input
+    max_choices: 4 as JsonValue,
+    max_text_len: 300 as JsonValue,
+    max_clues: 3 as JsonValue,
+    supports_timers: false as JsonValue,
+    supports_typing: true as JsonValue,
   },
 };
 
-/**
- * Create capabilities with custom limits
- */
 export function createCapabilities(
-  overrides: Partial<Capabilities["limits"]> = {}
+  overrides: Record<string, JsonValue> = {}
 ): Capabilities {
   return {
     ...DEFAULT_CAPABILITIES,
@@ -67,9 +55,6 @@ export function createCapabilities(
   };
 }
 
-/**
- * Game locations for the medieval fantasy setting
- */
 export const GAME_LOCATIONS = {
   village_square: {
     id: "village_square",
@@ -129,16 +114,10 @@ export const GAME_LOCATIONS = {
 
 export type LocationId = keyof typeof GAME_LOCATIONS;
 
-/**
- * Get location info by ID
- */
 export function getLocation(locationId: string) {
   return GAME_LOCATIONS[locationId as LocationId] ?? null;
 }
 
-/**
- * Get connected locations from current location
- */
 export function getConnectedLocations(locationId: string): string[] {
   const location = getLocation(locationId);
   return location?.connections ? [...location.connections] : [];

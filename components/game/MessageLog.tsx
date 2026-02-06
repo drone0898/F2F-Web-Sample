@@ -4,11 +4,10 @@
  * MessageLog Component
  *
  * Displays the scrolling message history.
- * Shows system messages, player actions, NPC dialogue, and directives.
  */
 
 import { useEffect, useRef } from "react";
-import { GameMessage } from "@/lib/engine/types";
+import { type GameMessage } from "@/lib/engine/sdk-bridge";
 
 interface MessageLogProps {
   messages: GameMessage[];
@@ -18,7 +17,6 @@ interface MessageLogProps {
 export function MessageLog({ messages, maxMessages = 100 }: MessageLogProps) {
   const containerRef = useRef<HTMLDivElement>(null);
 
-  // Auto-scroll to bottom on new messages
   useEffect(() => {
     if (containerRef.current) {
       containerRef.current.scrollTop = containerRef.current.scrollHeight;
@@ -61,7 +59,6 @@ function MessageItem({ message }: MessageItemProps) {
     });
   };
 
-  // Build class names
   let className = `message-item ${type}`;
   if (type === "consequence" && metadata?.success !== undefined) {
     className += metadata.success ? " success" : " failure";

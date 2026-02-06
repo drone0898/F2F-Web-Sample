@@ -2,23 +2,22 @@
  * Game State Store (Zustand)
  *
  * Central state management for the game.
- * Handles session, world state, directives, SSE state, and message history.
+ * Handles session, world state, experiences, SSE state, and message history.
  */
 
 import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
 import {
-  Directive,
-  DirectiveLite,
-  Signal,
-  WorldSnapshot,
-  GameMessage,
-  GameState,
-  Outcome,
-  StreamEvent,
-  SSEConnectionStatus,
-  LoopStatus,
-} from "@/lib/engine/types";
+  type Experience,
+  type ExperienceLite,
+  type Signal,
+  type WorldSnapshot,
+  type StreamEvent,
+  type SSEConnectionStatus,
+  type LoopStatus,
+  type GameMessage,
+  type GameState,
+} from "@/lib/engine/sdk-bridge";
 import { saveManager, SaveData } from "@/lib/saves/save-manager";
 import { GameTemplate } from "@/lib/game/templates";
 
@@ -40,10 +39,10 @@ interface GameStore {
   worldSnapshot: WorldSnapshot | null;
   signals: Signal[];
 
-  // Directives
-  currentDirective: Directive | null;
-  currentDirectiveLite: DirectiveLite | null;
-  directiveHistory: Directive[];
+  // Experiences
+  currentExperience: Experience | null;
+  currentExperienceLite: ExperienceLite | null;
+  experienceHistory: Experience[];
 
   // Messages
   messages: GameMessage[];
@@ -71,22 +70,19 @@ interface GameStore {
   updateWorldState: (updates: Partial<GameState>) => void;
   setSignals: (signals: Signal[]) => void;
 
-  // Actions - Directives
-  setDirective: (directive: Directive | null) => void;
-  setDirectiveLite: (lite: DirectiveLite | null) => void;
-  archiveDirective: (directive: Directive) => void;
+  // Actions - Experiences
+  setExperience: (experience: Experience | null) => void;
+  setExperienceLite: (lite: ExperienceLite | null) => void;
+  archiveExperience: (experience: Experience) => void;
 
   // Actions - Messages
   addMessage: (message: Omit<GameMessage, "id" | "timestamp">) => void;
   addSystemMessage: (content: string) => void;
   addPlayerMessage: (content: string) => void;
   addNpcMessage: (content: string, metadata?: Record<string, unknown>) => void;
-  addDirectiveMessage: (content: string) => void;
+  addExperienceMessage: (content: string) => void;
   addConsequenceMessage: (content: string, metadata?: Record<string, unknown>) => void;
   clearMessages: () => void;
-
-  // Actions - Outcome
-  applyOutcomeLocally: (outcome: Outcome) => void;
 
   // Actions - Loading
   setLoading: (value: boolean) => void;
@@ -113,9 +109,9 @@ const initialState = {
   shortMessage: null,
   worldSnapshot: null,
   signals: [],
-  currentDirective: null,
-  currentDirectiveLite: null,
-  directiveHistory: [],
+  currentExperience: null,
+  currentExperienceLite: null,
+  experienceHistory: [],
   messages: [],
   isLoading: false,
   error: null,
@@ -151,7 +147,7 @@ export const useGameStore = create<GameStore>()(
       handleStreamEvent: (event) => {
         // Handle state change
         if (event.state) {
-          set({ loopState: event.state.status });
+          set({ loopState: event.state.status as LoopStatus });
         }
 
         // Handle short message
@@ -159,20 +155,20 @@ export const useGameStore = create<GameStore>()(
           set({ shortMessage: event.short_message.message });
         }
 
-        // Handle directive
-        if (event.directive) {
-          const directive = event.directive;
+        // Handle experience
+        if (event.experience) {
+          const experience = event.experience;
           set((state) => ({
-            currentDirective: directive,
-            directiveHistory: [...state.directiveHistory, directive].slice(-10),
-            shortMessage: null, // Clear short message when directive arrives
-            loopState: null, // Reset loop state
+            currentExperience: experience,
+            experienceHistory: [...state.experienceHistory, experience].slice(-10),
+            shortMessage: null,
+            loopState: null,
           }));
         }
 
-        // Handle directive lite
-        if (event.directive_lite) {
-          set({ currentDirectiveLite: event.directive_lite });
+        // Handle experience lite
+        if (event.experience_lite) {
+          set({ currentExperienceLite: event.experience_lite });
         }
 
         // Handle error
@@ -202,14 +198,14 @@ export const useGameStore = create<GameStore>()(
 
       setSignals: (signals) => set({ signals }),
 
-      // Directive Actions
-      setDirective: (directive) => set({ currentDirective: directive }),
+      // Experience Actions
+      setExperience: (experience) => set({ currentExperience: experience }),
 
-      setDirectiveLite: (lite) => set({ currentDirectiveLite: lite }),
+      setExperienceLite: (lite) => set({ currentExperienceLite: lite }),
 
-      archiveDirective: (directive) => {
+      archiveExperience: (experience) => {
         set((state) => ({
-          directiveHistory: [...state.directiveHistory, directive].slice(-10),
+          experienceHistory: [...state.experienceHistory, experience].slice(-10),
         }));
       },
 
@@ -223,7 +219,7 @@ export const useGameStore = create<GameStore>()(
               id: crypto.randomUUID(),
               timestamp: new Date().toISOString(),
             },
-          ].slice(-100), // Keep last 100 messages
+          ].slice(-100),
         }));
       },
 
@@ -239,8 +235,8 @@ export const useGameStore = create<GameStore>()(
         get().addMessage({ type: "npc", content, metadata });
       },
 
-      addDirectiveMessage: (content) => {
-        get().addMessage({ type: "directive", content });
+      addExperienceMessage: (content) => {
+        get().addMessage({ type: "experience", content });
       },
 
       addConsequenceMessage: (content, metadata) => {
@@ -248,28 +244,6 @@ export const useGameStore = create<GameStore>()(
       },
 
       clearMessages: () => set({ messages: [] }),
-
-      // Outcome Actions
-      applyOutcomeLocally: (outcome) => {
-        const current = get().worldSnapshot;
-        if (!current) return;
-
-        const newState = { ...current.state };
-        for (const change of outcome.changes) {
-          const key = change.metric;
-          if (typeof newState[key] === "number") {
-            newState[key] = (newState[key] as number) + change.delta;
-          }
-        }
-
-        set({
-          worldSnapshot: {
-            ...current,
-            ts: new Date().toISOString(),
-            state: newState,
-          },
-        });
-      },
 
       // Loading Actions
       setLoading: (value) => set({ isLoading: value }),
@@ -287,8 +261,8 @@ export const useGameStore = create<GameStore>()(
           sessionId: state.sessionId,
           worldSnapshot: state.worldSnapshot,
           messages: state.messages,
-          currentDirective: state.currentDirective,
-          directiveHistory: state.directiveHistory,
+          currentExperience: state.currentExperience,
+          experienceHistory: state.experienceHistory,
         };
 
         saveManager.saveGame(slotId, saveData, state.getGameState());
@@ -302,8 +276,8 @@ export const useGameStore = create<GameStore>()(
           sessionId: saveData.sessionId,
           worldSnapshot: saveData.worldSnapshot,
           messages: saveData.messages,
-          currentDirective: saveData.currentDirective,
-          directiveHistory: saveData.directiveHistory,
+          currentExperience: saveData.currentExperience,
+          experienceHistory: saveData.experienceHistory,
           isInitialized: true,
           isConnected: true,
           isLoading: false,
@@ -316,7 +290,7 @@ export const useGameStore = create<GameStore>()(
       // Computed
       getGameState: () => {
         const snapshot = get().worldSnapshot;
-        if (!snapshot) return DEFAULT_GAME_STATE;
+        if (!snapshot?.state) return DEFAULT_GAME_STATE;
 
         return {
           hp: (snapshot.state.hp as number) ?? DEFAULT_GAME_STATE.hp,
@@ -339,7 +313,7 @@ export const useGameStore = create<GameStore>()(
       partialize: (state) => ({
         sessionId: state.sessionId,
         worldSnapshot: state.worldSnapshot,
-        messages: state.messages.slice(-20), // Only persist last 20 messages
+        messages: state.messages.slice(-20),
       }),
     }
   )
@@ -352,8 +326,8 @@ export const useSessionId = () => useGameStore((s) => s.sessionId);
 export const useIsLoading = () => useGameStore((s) => s.isLoading);
 export const useError = () => useGameStore((s) => s.error);
 export const useMessages = () => useGameStore((s) => s.messages);
-export const useDirective = () => useGameStore((s) => s.currentDirective);
-export const useDirectiveLite = () => useGameStore((s) => s.currentDirectiveLite);
+export const useExperience = () => useGameStore((s) => s.currentExperience);
+export const useExperienceLite = () => useGameStore((s) => s.currentExperienceLite);
 export const useSignals = () => useGameStore((s) => s.signals);
 export const useGameState = () => useGameStore((s) => s.getGameState());
 

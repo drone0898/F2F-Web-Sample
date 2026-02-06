@@ -6,10 +6,11 @@
  */
 
 import {
-  Capabilities,
-  GameSchema,
-  SessionRuntimeConfig,
-} from "@/lib/engine/types";
+  type Capabilities,
+  type GameSchema,
+  type SessionRuntimeConfig,
+  type JsonValue,
+} from "@/lib/engine/sdk-bridge";
 
 // ============== Location Types ==============
 
@@ -117,10 +118,10 @@ const TEXT_ADVENTURE_SCHEMA: GameSchema = {
       attributes_schema: {
         format: "F2F_SCHEMA_V1",
         schema: {
-          choice_id: { type: "string", required: true },
-          choice_label: { type: "string", required: true },
-          directive_id: { type: "string", required: true },
-          success: { type: "boolean", required: true },
+          choice_id: { type: "string", required: true } as unknown as JsonValue,
+          choice_label: { type: "string", required: true } as unknown as JsonValue,
+          experience_id: { type: "string", required: true } as unknown as JsonValue,
+          success: { type: "boolean", required: true } as unknown as JsonValue,
         },
       },
     },
@@ -155,36 +156,53 @@ const TEXT_ADVENTURE_SCHEMA: GameSchema = {
       semantic_hint: "recovery",
     },
   },
-  directive_payload_schema: {
+  experience_payload_schema: {
     format: "F2F_SCHEMA_V1",
     schema: {
-      objective_text: {
-        type: "string",
-        required: true,
-        description: "플레이어에게 표시할 목표/상황 텍스트",
-      },
       choices: {
         type: "array",
         required: false,
         description: "선택지 배열",
-      },
+      } as unknown as JsonValue,
       clues: {
         type: "array",
         required: false,
         description: "힌트 배열",
-      },
+      } as unknown as JsonValue,
       mood: {
         type: "string",
         required: false,
         description: "분위기 힌트",
-      },
-      consequence_template: {
-        type: "string",
-        required: false,
-        description: "결과 템플릿",
+      } as unknown as JsonValue,
+    },
+  },
+  payload_specs: {
+    game_event: {
+      payload_id: "game_event",
+      description: "게임 이벤트 페이로드",
+      schema: {
+        format: "F2F_SCHEMA_V1",
+        schema: {
+          choices: {
+            type: "array",
+            required: false,
+            description: "선택지 배열",
+          } as unknown as JsonValue,
+          clues: {
+            type: "array",
+            required: false,
+            description: "힌트 배열",
+          } as unknown as JsonValue,
+          mood: {
+            type: "string",
+            required: false,
+            description: "분위기 힌트",
+          } as unknown as JsonValue,
+        },
       },
     },
   },
+  default_payload_id: "game_event",
 };
 
 const TEXT_ADVENTURE_RUNTIME_CONFIG: SessionRuntimeConfig = {
@@ -226,11 +244,11 @@ const TEXT_ADVENTURE_CAPABILITIES: Capabilities = {
     "change_location",
   ],
   limits: {
-    max_choices: 4,
-    max_text_len: 300,
-    max_clues: 3,
-    supports_timers: false,
-    supports_typing: true,
+    max_choices: 4 as JsonValue,
+    max_text_len: 300 as JsonValue,
+    max_clues: 3 as JsonValue,
+    supports_timers: false as JsonValue,
+    supports_typing: true as JsonValue,
   },
 };
 
@@ -265,23 +283,14 @@ export const GAME_TEMPLATES: Record<string, GameTemplate> = {
 
 // ============== Helper Functions ==============
 
-/**
- * Get a template by ID
- */
 export function getTemplate(templateId: string): GameTemplate | null {
   return GAME_TEMPLATES[templateId] ?? null;
 }
 
-/**
- * Get all available templates as a list
- */
 export function listTemplates(): GameTemplate[] {
   return Object.values(GAME_TEMPLATES);
 }
 
-/**
- * Get location info from a template
- */
 export function getTemplateLocation(
   template: GameTemplate,
   locationId: string
@@ -289,9 +298,6 @@ export function getTemplateLocation(
   return template.locations[locationId] ?? null;
 }
 
-/**
- * Get connected locations from a template
- */
 export function getTemplateConnectedLocations(
   template: GameTemplate,
   locationId: string
@@ -300,9 +306,6 @@ export function getTemplateConnectedLocations(
   return location?.connections ? [...location.connections] : [];
 }
 
-/**
- * Get location name from a template
- */
 export function getTemplateLocationName(
   template: GameTemplate,
   locationId: string

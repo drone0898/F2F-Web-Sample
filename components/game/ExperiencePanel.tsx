@@ -1,54 +1,43 @@
 "use client";
 
 /**
- * DirectivePanel Component
+ * ExperiencePanel Component
  *
- * Displays the current directive from F2F-Engine.
- * Shows objective, clues, and choice buttons.
- * Supports dynamic payload structure from GameSchema.
+ * Displays the current experience from F2F-Engine.
+ * Shows title, summary, clues, and choice buttons.
+ * Uses extractChoices/extractClues from sdk-bridge for payload parsing.
  */
 
-import { Directive, Choice, ClueItem } from "@/lib/engine/types";
-import { useDirectiveWithTTL, useTTLDisplay } from "@/lib/hooks/useDirective";
+import {
+  type Experience,
+  type Choice,
+  extractChoices,
+  extractClues,
+  extractPayloadField,
+} from "@/lib/engine/sdk-bridge";
+import { useExperienceWithTTL, useTTLDisplay } from "@/lib/hooks/useExperience";
 import { ChoiceButtons } from "./ChoiceButtons";
 
-interface DirectivePanelProps {
-  directive: Directive;
+interface ExperiencePanelProps {
+  experience: Experience;
   onChoiceSelect: (choice: Choice) => void;
   disabled?: boolean;
 }
 
-/**
- * Extract value from directive - checks both top-level fields and payload
- */
-function getDirectiveField<T>(directive: Directive, field: string): T | undefined {
-  // First check top-level fields (for backward compatibility)
-  const directiveRecord = directive as unknown as Record<string, unknown>;
-  if (field in directiveRecord) {
-    return directiveRecord[field] as T;
-  }
-  // Then check payload
-  if (directive.payload && field in directive.payload) {
-    return directive.payload[field] as T;
-  }
-  return undefined;
-}
-
-export function DirectivePanel({
-  directive,
+export function ExperiencePanel({
+  experience,
   onChoiceSelect,
   disabled = false,
-}: DirectivePanelProps) {
-  const { remainingTTL, isUrgent, isProcessing, shortMessage } = useDirectiveWithTTL();
+}: ExperiencePanelProps) {
+  const { remainingTTL, isUrgent, isProcessing, shortMessage } = useExperienceWithTTL();
   const ttlDisplay = useTTLDisplay(remainingTTL);
 
-  const { primary_verb } = directive;
+  const { primary_verb, title, summary, payload } = experience;
 
-  // Get fields from directive (supports both legacy and payload-based)
-  const objectiveText = getDirectiveField<string>(directive, "objective_text");
-  const choices = getDirectiveField<Choice[]>(directive, "choices");
-  const clues = getDirectiveField<ClueItem[]>(directive, "clues");
-  const mood = getDirectiveField<string>(directive, "mood");
+  // Extract from payload
+  const choices = extractChoices(payload);
+  const clues = extractClues(payload);
+  const mood = extractPayloadField<string>(payload, "mood");
 
   return (
     <div className={`directive-panel ${mood ? `mood-${mood}` : ""}`}>
@@ -71,37 +60,36 @@ export function DirectivePanel({
         )}
       </div>
 
-      {/* Objective */}
-      {objectiveText && (
+      {/* Title */}
+      {title && (
         <div className="directive-objective">
           <span className="prompt">&gt;</span>
-          <p className="objective-text">{objectiveText}</p>
+          <p className="objective-text" style={{ fontWeight: "bold" }}>{title}</p>
+        </div>
+      )}
+
+      {/* Summary */}
+      {summary && (
+        <div className="directive-objective">
+          <p className="objective-text">{summary}</p>
         </div>
       )}
 
       {/* Clues */}
-      {clues && clues.length > 0 && (
+      {clues.length > 0 && (
         <div className="directive-clues">
           <span className="clue-label">[ CLUES ]</span>
-          {clues.map((clue, index) => {
-            // Handle both string and object formats
-            const isString = typeof clue === "string";
-            const key = isString ? `clue-${index}` : clue.clue_id || `clue-${index}`;
-            const content = isString ? clue : clue.content;
-            const type = isString ? "단서" : clue.type;
-
-            return (
-              <div key={key} className="clue-item">
-                <span className="clue-type">[{type}]</span>
-                <span className="clue-content">{content}</span>
-              </div>
-            );
-          })}
+          {clues.map((clue, index) => (
+            <div key={`clue-${index}`} className="clue-item">
+              <span className="clue-type">[단서]</span>
+              <span className="clue-content">{clue}</span>
+            </div>
+          ))}
         </div>
       )}
 
       {/* Choices */}
-      {choices && choices.length > 0 && (
+      {choices.length > 0 && (
         <ChoiceButtons
           choices={choices}
           onSelect={onChoiceSelect}
@@ -150,19 +138,19 @@ export function DirectivePanel({
 }
 
 /**
- * DirectiveLitePanel - for quick hints
+ * ExperienceLitePanel - for quick hints
  */
-interface DirectiveLitePanelProps {
+interface ExperienceLitePanelProps {
   hint: string;
   action: string;
   priority: number;
 }
 
-export function DirectiveLitePanel({
+export function ExperienceLitePanel({
   hint,
   action,
   priority,
-}: DirectiveLitePanelProps) {
+}: ExperienceLitePanelProps) {
   const priorityStyle = {
     color:
       priority >= 3

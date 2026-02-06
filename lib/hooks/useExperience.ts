@@ -1,52 +1,43 @@
 "use client";
 
 /**
- * useDirective Hook
+ * useExperience Hook
  *
- * Manages directive state and TTL countdown.
- * Directives are now received via SSE stream, not polling.
+ * Manages experience state and TTL countdown.
+ * Experiences are received via SSE stream.
  */
 
 import { useEffect, useState, useRef } from "react";
 import {
-  useDirective as useDirectiveState,
-  useDirectiveLite,
+  useExperience as useExperienceState,
+  useExperienceLite,
   useLoopState,
   useShortMessage,
 } from "@/stores/game-store";
 
-interface UseDirectiveOptions {
-  /** Enable TTL countdown */
+interface UseExperienceOptions {
   enableTTL?: boolean;
 }
 
-interface UseDirectiveReturn {
-  /** Current directive */
-  directive: ReturnType<typeof useDirectiveState>;
-  /** Current directive lite */
-  directiveLite: ReturnType<typeof useDirectiveLite>;
-  /** Remaining TTL in seconds */
+interface UseExperienceReturn {
+  experience: ReturnType<typeof useExperienceState>;
+  experienceLite: ReturnType<typeof useExperienceLite>;
   remainingTTL: number | null;
-  /** Whether the directive is about to expire (< 30s) */
   isUrgent: boolean;
-  /** Whether the directive has expired */
   isExpired: boolean;
-  /** Whether engine is processing (from SSE) */
   isProcessing: boolean;
-  /** Short message from SSE */
   shortMessage: string | null;
-  /** Loop state from SSE */
   loopState: ReturnType<typeof useLoopState>;
 }
 
 /**
- * Main directive hook - uses SSE state, no polling
+ * Main experience hook - uses SSE state, no polling
  */
-export function useDirectiveState2(options: UseDirectiveOptions = {}): UseDirectiveReturn {
+export function useExperienceWithTTL(options: UseExperienceOptions = {}): UseExperienceReturn {
   const { enableTTL = true } = options;
 
-  const directive = useDirectiveState();
-  const directiveLite = useDirectiveLite();
+  const experience = useExperienceState();
+  const experienceLite = useExperienceLite();
   const loopState = useLoopState();
   const shortMessage = useShortMessage();
 
@@ -54,19 +45,27 @@ export function useDirectiveState2(options: UseDirectiveOptions = {}): UseDirect
   const [isExpired, setIsExpired] = useState(false);
   const ttlIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Calculate TTL based on directive creation time
+  // Calculate TTL based on experience creation time
   useEffect(() => {
-    if (!directive || !enableTTL) {
+    if (!experience || !enableTTL) {
+      setRemainingTTL(null);
+      setIsExpired(false);
+      return;
+    }
+
+    // Experience uses estimated_duration_seconds instead of ttl_seconds
+    const ttlSeconds = experience.estimated_duration_seconds;
+    if (!ttlSeconds) {
       setRemainingTTL(null);
       setIsExpired(false);
       return;
     }
 
     const calculateRemainingTTL = () => {
-      const createdAt = new Date(directive.created_at).getTime();
+      const createdAt = new Date(experience.created_at).getTime();
       const now = Date.now();
       const elapsed = Math.floor((now - createdAt) / 1000);
-      const remaining = Math.max(0, directive.ttl_seconds - elapsed);
+      const remaining = Math.max(0, ttlSeconds - elapsed);
 
       setRemainingTTL(remaining);
       setIsExpired(remaining === 0);
@@ -74,14 +73,11 @@ export function useDirectiveState2(options: UseDirectiveOptions = {}): UseDirect
       return remaining;
     };
 
-    // Initial calculation
     calculateRemainingTTL();
 
-    // Update every second
     ttlIntervalRef.current = setInterval(() => {
       const remaining = calculateRemainingTTL();
       if (remaining === 0) {
-        // Directive expired
         if (ttlIntervalRef.current) {
           clearInterval(ttlIntervalRef.current);
         }
@@ -93,14 +89,14 @@ export function useDirectiveState2(options: UseDirectiveOptions = {}): UseDirect
         clearInterval(ttlIntervalRef.current);
       }
     };
-  }, [directive, enableTTL]);
+  }, [experience, enableTTL]);
 
   const isUrgent = remainingTTL !== null && remainingTTL > 0 && remainingTTL < 30;
   const isProcessing = loopState === "DECIDE" || loopState === "GENERATE";
 
   return {
-    directive,
-    directiveLite,
+    experience,
+    experienceLite,
     remainingTTL,
     isUrgent,
     isExpired,
@@ -111,21 +107,21 @@ export function useDirectiveState2(options: UseDirectiveOptions = {}): UseDirect
 }
 
 /**
- * Simple hook for accessing directive state
+ * Simple hook for accessing experience state
  */
-export function useCurrentDirective() {
-  const directive = useDirectiveState();
-  const directiveLite = useDirectiveLite();
+export function useCurrentExperience() {
+  const experience = useExperienceState();
+  const experienceLite = useExperienceLite();
   const loopState = useLoopState();
   const shortMessage = useShortMessage();
 
   const isProcessing = loopState === "DECIDE" || loopState === "GENERATE";
 
   return {
-    directive,
-    directiveLite,
-    hasDirective: directive !== null,
-    hasDirectiveLite: directiveLite !== null,
+    experience,
+    experienceLite,
+    hasExperience: experience !== null,
+    hasExperienceLite: experienceLite !== null,
     isProcessing,
     shortMessage,
     loopState,
@@ -146,11 +142,4 @@ export function useTTLDisplay(ttlSeconds: number | null): string | null {
   }
 
   return `${seconds}초`;
-}
-
-/**
- * Hook for directive with TTL management
- */
-export function useDirectiveWithTTL() {
-  return useDirectiveState2({ enableTTL: true });
 }

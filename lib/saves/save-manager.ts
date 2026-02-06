@@ -6,11 +6,11 @@
  */
 
 import {
-  WorldSnapshot,
-  GameMessage,
-  Directive,
-  GameState,
-} from "@/lib/engine/types";
+  type WorldSnapshot,
+  type GameMessage,
+  type Experience,
+  type GameState,
+} from "@/lib/engine/sdk-bridge";
 
 const MAX_SLOTS = 5;
 const SLOTS_KEY = "f2f-save-slots";
@@ -30,8 +30,8 @@ export interface SaveData {
   sessionId: string;
   worldSnapshot: WorldSnapshot;
   messages: GameMessage[];
-  currentDirective: Directive | null;
-  directiveHistory: Directive[];
+  currentExperience: Experience | null;
+  experienceHistory: Experience[];
 }
 
 function getStorageKey(slotId: number): string {
@@ -50,7 +50,6 @@ export const saveManager = {
       if (!data) return Array(MAX_SLOTS).fill(null);
 
       const slots: (SaveSlot | null)[] = JSON.parse(data);
-      // Ensure we always return MAX_SLOTS
       while (slots.length < MAX_SLOTS) {
         slots.push(null);
       }
@@ -67,10 +66,8 @@ export const saveManager = {
     if (typeof window === "undefined") return;
     if (slotId < 1 || slotId > MAX_SLOTS) return;
 
-    // Save the full game data
     localStorage.setItem(getStorageKey(slotId), JSON.stringify(data));
 
-    // Update slot metadata
     const slots = this.getSlots();
     const slotMeta: SaveSlot = {
       slotId,
@@ -108,10 +105,8 @@ export const saveManager = {
     if (typeof window === "undefined") return;
     if (slotId < 1 || slotId > MAX_SLOTS) return;
 
-    // Remove save data
     localStorage.removeItem(getStorageKey(slotId));
 
-    // Update slot metadata
     const slots = this.getSlots();
     slots[slotId - 1] = null;
     localStorage.setItem(SLOTS_KEY, JSON.stringify(slots));

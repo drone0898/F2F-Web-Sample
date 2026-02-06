@@ -17,8 +17,7 @@ import {
 } from "@/lib/engine/actions";
 import { createFactBuilder } from "@/lib/game/fact-builder";
 import { determineSuccess } from "@/lib/game/success-resolver";
-import { outcomeChangesToOps } from "@/lib/game/outcome-ops";
-import { Choice } from "@/lib/engine/types";
+import { type Choice, extractChoices } from "@/lib/engine/sdk-bridge";
 import { useSSEStream } from "./useSSEStream";
 import { GameTemplate, getTemplateLocation } from "@/lib/game/templates";
 
@@ -36,15 +35,14 @@ export function useGameSession() {
     setInitialized,
     setConnected,
     setWorldSnapshot,
-    setDirective,
-    setDirectiveLite,
+    setExperience,
+    setExperienceLite,
     setLoading,
     setError,
     addSystemMessage,
     addPlayerMessage,
-    addDirectiveMessage,
+    addExperienceMessage,
     addConsequenceMessage,
-    applyOutcomeLocally,
     getGameState,
     reset,
   } = useGameStore();
@@ -65,7 +63,6 @@ export function useGameSession() {
 
   // Initialize game session with template
   const initializeGame = useCallback(async (template?: GameTemplate) => {
-    // Use provided template or selectedTemplate from store
     const gameTemplate = template ?? selectedTemplate;
 
     if (!gameTemplate) {
@@ -86,19 +83,16 @@ export function useGameSession() {
 
     startTransition(async () => {
       try {
-        // Check engine health first
         const isHealthy = await checkEngineHealth();
         setConnected(isHealthy);
 
         if (!isHealthy) {
-          // Connection failed - show error
           setError("F2F-Engine에 연결할 수 없습니다. 엔진이 실행 중인지 확인해주세요.");
           setInitialized(false);
-          initializingRef.current = false; // Allow retry
+          initializingRef.current = false;
           return;
         }
 
-        // Initialize with engine using template
         const result = await startGameSession(newSessionId, gameTemplate);
 
         if (result.success) {
@@ -107,26 +101,23 @@ export function useGameSession() {
           addSystemMessage("F2F-Engine에 연결되었습니다.");
           addSystemMessage(`게임을 시작합니다: ${gameTemplate.name}`);
 
-          // Get initial location from template
           const initialLocation = gameTemplate.initialWorldState.location as string;
           const location = getTemplateLocation(gameTemplate, initialLocation);
           if (location) {
             addSystemMessage(`현재 위치: ${location.name}`);
             addSystemMessage(location.description);
           }
-
-          // SSE will auto-connect via useSSEStream hook
         } else {
           setError(result.error ?? "게임을 시작할 수 없습니다.");
           setInitialized(false);
-          initializingRef.current = false; // Allow retry
+          initializingRef.current = false;
         }
       } catch (error) {
         console.error("Failed to initialize game:", error);
         setError("F2F-Engine 연결 중 오류가 발생했습니다.");
         setConnected(false);
         setInitialized(false);
-        initializingRef.current = false; // Allow retry
+        initializingRef.current = false;
       } finally {
         setLoading(false);
       }
@@ -155,7 +146,6 @@ export function useGameSession() {
         return;
       }
 
-      // Build player message based on verb
       switch (verb) {
         case "move":
           addPlayerMessage(`${objectId}(으)로 이동합니다.`);
@@ -182,7 +172,6 @@ export function useGameSession() {
           addPlayerMessage(`${verb} ${objectId ?? ""}`);
       }
 
-      // Send to engine
       const factBuilder = createFactBuilder(sessionId);
       let fact;
 
@@ -219,12 +208,14 @@ export function useGameSession() {
           const result = await sendFacts(sessionId, [fact], worldSnapshot);
 
           if (result.success) {
-            if (result.directive) {
-              setDirective(result.directive);
-              addDirectiveMessage(result.directive.objective_text);
+            if (result.experience) {
+              setExperience(result.experience);
+              // Use title + summary from Experience
+              const displayText = result.experience.summary || result.experience.title;
+              addExperienceMessage(displayText);
             }
-            if (result.directiveLite) {
-              setDirectiveLite(result.directiveLite);
+            if (result.experienceLite) {
+              setExperienceLite(result.experienceLite);
             }
           } else {
             addSystemMessage(`오류: ${result.error ?? "행동을 처리할 수 없습니다."}`);
@@ -242,15 +233,15 @@ export function useGameSession() {
       isConnected,
       worldSnapshot,
       setLoading,
-      setDirective,
-      setDirectiveLite,
+      setExperience,
+      setExperienceLite,
       addPlayerMessage,
-      addDirectiveMessage,
+      addExperienceMessage,
       addSystemMessage,
     ]
   );
 
-  // Select a choice from a directive
+  // Select a choice from an experience
   const selectChoice = useCallback(
     async (choice: Choice) => {
       if (!sessionId || !worldSnapshot) {
@@ -258,17 +249,15 @@ export function useGameSession() {
         return;
       }
 
-      // 1. Determine success/failure based on choice type
       const success = determineSuccess(choice);
 
       const factBuilder = createFactBuilder(sessionId);
-      const directive = useGameStore.getState().currentDirective;
+      const experience = useGameStore.getState().currentExperience;
 
-      // 2. Create fact with success included
       const fact = factBuilder.selectChoice(
         choice.choice_id,
         choice.label,
-        directive?.directive_id,
+        experience?.experience_id,
         success
       );
 
@@ -280,48 +269,21 @@ export function useGameSession() {
           const result = await sendFacts(sessionId, [fact], worldSnapshot);
 
           if (result.success) {
-            // 3. Process choice result if available
-            if (result.choiceResult) {
-              const { outcome } = result.choiceResult;
-
-              // Display outcome narrative
-              const prefix = success ? "[성공]" : "[실패]";
-              addConsequenceMessage(`${prefix} ${outcome.narrative}`, { success });
-
-              // Apply outcome to local state (UI update)
-              applyOutcomeLocally(outcome);
-
-              // Display changes
-              for (const change of outcome.changes) {
-                const sign = change.delta > 0 ? "+" : "";
-                addSystemMessage(`${change.metric} ${sign}${change.delta}`);
-              }
-
-              // 4. Sync with Engine via patch
-              if (outcome.changes.length > 0) {
-                const ops = outcomeChangesToOps(outcome.changes);
-                await patchWorldSnapshot(sessionId, {
-                  session_id: sessionId,
-                  ts: new Date().toISOString(),
-                  ops,
-                });
-              }
+            // Archive current experience
+            if (experience) {
+              useGameStore.getState().archiveExperience(experience);
             }
 
-            // 5. Archive and set new directive
-            if (directive) {
-              useGameStore.getState().archiveDirective(directive);
-            }
-
-            if (result.directive) {
-              setDirective(result.directive);
-              addDirectiveMessage(result.directive.objective_text);
+            if (result.experience) {
+              setExperience(result.experience);
+              const displayText = result.experience.summary || result.experience.title;
+              addExperienceMessage(displayText);
             } else {
-              setDirective(null);
+              setExperience(null);
             }
 
-            if (result.directiveLite) {
-              setDirectiveLite(result.directiveLite);
+            if (result.experienceLite) {
+              setExperienceLite(result.experienceLite);
             }
           } else {
             addSystemMessage(`오류: ${result.error ?? "선택을 처리할 수 없습니다."}`);
@@ -338,13 +300,11 @@ export function useGameSession() {
       sessionId,
       worldSnapshot,
       setLoading,
-      setDirective,
-      setDirectiveLite,
+      setExperience,
+      setExperienceLite,
       addPlayerMessage,
-      addDirectiveMessage,
-      addConsequenceMessage,
+      addExperienceMessage,
       addSystemMessage,
-      applyOutcomeLocally,
     ]
   );
 
